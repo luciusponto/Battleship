@@ -1,13 +1,18 @@
 package com.lucianoscilletta.battleship;
-import javax.media.*;
-import java.io.*;
+
+import javafx.embed.swing.JFXPanel;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.util.Duration;
+
+import java.io.File;
 import java.net.URL;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AudioPlayer{
 	private URL url;
-	private MediaLocator mediaLocator;
-	private Player player;
+	private MediaPlayer player;
 	private long delay;
 	private double startPosition = 0;
 	private double playTime = 0;
@@ -23,6 +28,9 @@ public class AudioPlayer{
 	private boolean repaint = false;
 	private boolean isMusic = false;
 
+	// initialise Java FX
+	static JFXPanel jfxPanel = new JFXPanel();
+
 	public AudioPlayer(String customDir, boolean shuffleCustom, float level){
 		this.customDir = customDir;
 		this.shuffleCustom = shuffleCustom;
@@ -35,24 +43,11 @@ public class AudioPlayer{
 		this.loopCount = 0;
 		this.level = level;
 	}
-	public AudioPlayer(String file){
-		this(file, 0, 0, 0);
-	}
-	public AudioPlayer(String file, double startPosition){
-		this(file, startPosition, 0, 0);
-	}
-	public AudioPlayer(String file, long delay){
-		this(file, 0, 0, delay);
-		this.isMusic = false;
-	}
 	public AudioPlayer(String file, long delay, boolean loadCannon, boolean repaint){
 		this(file, 0, 0, delay);
 		this.loadCannon = loadCannon;
 		this.repaint = repaint;
 		this.isMusic = false;
-	}
-	public AudioPlayer(String file, double startPosition, double playTime){
-		this(file, startPosition, playTime, 0);
 	}
 	public AudioPlayer(String audioFile, double startPosition, double playTime, long delay){
 		this(audioFile, startPosition, playTime, delay, 1);
@@ -69,12 +64,9 @@ public class AudioPlayer{
 		this.level = level;
 		if (null != audioFile){
 			try {
-				//this.url = (new File(audioFile)).toURI().toURL();
 				this.url = this.getClass().getClassLoader().getResource(audioFile);
-				//System.out.println(url);
-			//}catch(java.net.MalformedURLException e){
 			}catch(Exception e){
-				System.out.println(e.getMessage());
+				e.printStackTrace();
 			}
 		}
 		this.customMode = false;
@@ -86,13 +78,13 @@ public class AudioPlayer{
 	public void stopPlaying(){
 		if (null != player){
 			player.stop();
-			player.close();
+			player.dispose();
 		}
 	}
 
-	private MediaLocator getCustomMedia(){
+	private Media getCustomMedia(){
 		File path;
-		MediaLocator mediaLocator = null;
+		Media media = null;
 		if (shuffleCustom){
 			path = customFiles[(int)Math.round(Math.random() * (customFiles.length - 1))];
 		} else {
@@ -103,14 +95,15 @@ public class AudioPlayer{
 			}
 		}
 		try {
-		    mediaLocator =  new MediaLocator(path.toURI().toURL());
+		    media =  new Media(path.toURI().toString());
 		} catch (Exception e) {
 		    System.out.println("AudioPlayer: getCustomMedia: could not create mediaLocator");
+			e.printStackTrace();
 		}
 		if (GraphicsEngine.isTestMode()){
 			System.out.println("path: " + path);
 		}
-		return mediaLocator;
+		return media;
 	}
 
 	private void timeOver(){
@@ -143,11 +136,12 @@ public class AudioPlayer{
 
 	private void resetPlayer(){
 		try {
-			player.setMediaTime(new Time(startPosition));
-			player.start();
+			player.setStartTime(new Duration(startPosition * 1000));
+			player.play();
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			System.out.println("Error: AudioPlayer.resetPlayer(): media time could not be set.");
+			e.printStackTrace();
 		}
 	}
 
@@ -155,7 +149,7 @@ public class AudioPlayer{
 		(new InitPlayer()).start();
 	}
 
-	class InitPlayer extends Thread{
+	private class InitPlayer extends Thread{
 		public void run(){
 			try {
 				if (delay > 0){
@@ -172,47 +166,55 @@ public class AudioPlayer{
 			} catch (Exception e){
 				System.out.println("Error: AudioPlayer.run(): Error updating UI.");
 				System.out.println(e.getMessage());
+				e.printStackTrace();
 			}
+			Media media = null;
 			try{
 				if (!customMode){
-					mediaLocator = new MediaLocator(url);
+					media = new Media(url.toURI().toString());
 				} else {
-					mediaLocator = getCustomMedia();
+					media = getCustomMedia();
 				}
 			}catch (Exception e){
 				System.out.println(e.getMessage());
 				System.out.println("Error: AudioPlayer.run(): MediaLocator could not be obtained.");
+				e.printStackTrace();
 			}
-			try{
-				player = Manager.createPlayer(mediaLocator);
-			}catch(java.io.IOException e){
-				System.out.println(e.getMessage());
-				System.out.println("Error: AudioPlayer.run(): player could not be created. IOException.");
-			}catch(javax.media.NoPlayerException e){
-				System.out.println(e.getMessage());
-				System.out.println("Error: AudioPlayer.run(): player could not be created. NoPlayerException.");
+			try {
+				player = new MediaPlayer(media);
+			} catch (javafx.scene.media.MediaException e) {
+				e.printStackTrace();
 			} catch (Exception e) {
 				System.out.println(e.getMessage());
 				System.out.println("Error: AudioPlayer.run(): player could not be created. Exception.");
+				e.printStackTrace();
 			}
-			player.addControllerListener(new ControllerListener(){
-				public void controllerUpdate(ControllerEvent e){
-					if (e instanceof EndOfMediaEvent){
-						timeOver();
-					} else if (e instanceof StopAtTimeEvent){
-						stopPlaying();
-					} else if (e instanceof RealizeCompleteEvent){
-						startPlayer();
-					}
+			player.setOnEndOfMedia(new Runnable() {
+				@Override
+				public void run() {
+				   timeOver();
 				}
 			});
-			player.realize();
-		}
+			player.setOnStopped(new Runnable() {
+				@Override
+				public void run() {
+					stopPlaying();
+				}
+			});
+
+			// replacing jmf player.realize() and jmf's event triggered when player is fully realized
+			player.setOnReady(new Runnable() {
+				@Override
+				public void run() {
+					startPlayer();
+				}
+			});
+        }
 	}
 
 	private void startPlayer(){
 		try {
-			player.setMediaTime(new Time(startPosition));
+			player.setStartTime(new Duration(startPosition * 1000));
 			/*
 			if (playTime > 0.0001){
 				player.setStopTime(new Time(startPosition + playTime));
@@ -221,28 +223,29 @@ public class AudioPlayer{
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			System.out.println("Error: AudioPlayer.startPlayer(): media time could not be set.");
+			e.printStackTrace();
 		}
 		GraphicsEngine.setBkgMusicMuted();
 		if ( ((!isMusic) && (!GraphicsEngine.getOptions().getSndOptPlaySounds())) || ((isMusic) && (!GraphicsEngine.getOptions().getSndOptPlayMusic())) ){
-			player.getGainControl().setLevel(0.0f);
+			player.setVolume(0);
 		} else {
-			player.getGainControl().setLevel(level);
+			player.setVolume(level);
 		}
 		if ((GraphicsEngine.isTestMode()) && (!GraphicsEngine.isServer())){ // in test mode play sounds only on server
-			player.getGainControl().setLevel(0.0f);
+			player.setVolume(0);
 		}
-		player.start();
+		player.play();
 		if (playTime > 0.0001){
 			(new StopTimer(playTime)).start();
 		}
 	}
 	public void setMute(boolean value){
 		if (null != player){
-			player.getGainControl().setMute(value);
+			player.setMute(value);
 		}
 	}
 
-	class StopTimer extends Thread{
+	private class StopTimer extends Thread{
 		long waitTime;
 		public StopTimer(double seconds){
 			waitTime = Math.round(seconds * 1000);
@@ -252,11 +255,12 @@ public class AudioPlayer{
 			    sleep(waitTime);
 			} catch (Exception e) {
 				System.out.println("Error: AudioPlayer.StopTimer.run(): could not sleep.");
+				e.printStackTrace();
 			}
 			stopPlaying();
 		}
 	}
-	class AudioFileFilter implements java.io.FileFilter{
+	private class AudioFileFilter implements java.io.FileFilter{
 		private String[] extensions = { "wav", "mp3" };
 		private Pattern pattern;
 		private Matcher matcher;
@@ -266,6 +270,7 @@ public class AudioPlayer{
 			    path = pathname.getCanonicalPath();
 			} catch (Exception e) {
 			    Err.msgExit("AudioPlayer: it was not possible to get custom path");
+				e.printStackTrace();
 			}
 			for (int i = 0; i < extensions.length; i++){
 				pattern = Pattern.compile(Pattern.quote(".") + extensions[i] + "$");

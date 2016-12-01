@@ -300,7 +300,9 @@ public class GraphicsEngine{
 		}
 	}
 	public static void setBkgMusicMuted(){
-		currentScreen.setMute(!getOptions().getSndOptPlayMusic());
+		if (currentScreen != null) {
+			currentScreen.setMute(!getOptions().getSndOptPlayMusic());
+		}
 	}
 	public static synchronized void netSend(String st){
 		if (null != writer){
@@ -772,6 +774,7 @@ public class GraphicsEngine{
 			}
 		}
 		*/
+		Thread.currentThread().setName("Battleship main thread");
 		engine = new GraphicsEngine();
 		engine.init();
 		//engine.connect();
