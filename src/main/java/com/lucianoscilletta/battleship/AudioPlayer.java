@@ -18,7 +18,6 @@ public class AudioPlayer{
 	private double playTime = 0;
 	private int loopCount;
 	private int maxLoops;
-	private String customDir;
 	private boolean customMode = false;
 	private boolean shuffleCustom;
 	private int customIndex = 0;
@@ -28,11 +27,12 @@ public class AudioPlayer{
 	private boolean repaint = false;
 	private boolean isMusic = false;
 
-	// initialise Java FX
-	static JFXPanel jfxPanel = new JFXPanel();
+    static{
+        // initialise Java FX - No need to keep a reference to the JFXPanel
+        new JFXPanel();
+    }
 
 	public AudioPlayer(String customDir, boolean shuffleCustom, float level){
-		this.customDir = customDir;
 		this.shuffleCustom = shuffleCustom;
 		this.customMode = true;
 		this.customFiles = (new File(customDir)).listFiles(new AudioFileFilter());
@@ -49,10 +49,10 @@ public class AudioPlayer{
 		this.repaint = repaint;
 		this.isMusic = false;
 	}
-	public AudioPlayer(String audioFile, double startPosition, double playTime, long delay){
+	private AudioPlayer(String audioFile, double startPosition, double playTime, long delay){
 		this(audioFile, startPosition, playTime, delay, 1);
 	}
-	public AudioPlayer(String audioFile, double startPosition, double playTime, long delay, int loops){
+	private AudioPlayer(String audioFile, double startPosition, double playTime, long delay, int loops){
 		this(audioFile, startPosition, playTime, delay, loops, 1.0f);
 	}
 	public AudioPlayer(String audioFile, double startPosition, double playTime, long delay, int loops, float level){
@@ -247,7 +247,7 @@ public class AudioPlayer{
 
 	private class StopTimer extends Thread{
 		long waitTime;
-		public StopTimer(double seconds){
+		StopTimer(double seconds){
 			waitTime = Math.round(seconds * 1000);
 		}
 		public void run(){
@@ -272,13 +272,13 @@ public class AudioPlayer{
 			    Err.msgExit("AudioPlayer: it was not possible to get custom path");
 				e.printStackTrace();
 			}
-			for (int i = 0; i < extensions.length; i++){
-				pattern = Pattern.compile(Pattern.quote(".") + extensions[i] + "$");
-				matcher = pattern.matcher(path);
-				while(matcher.find()){
-					return true;
-				}
-			}
+            for (String extension : extensions) {
+                pattern = Pattern.compile(Pattern.quote(".") + extension + "$");
+                matcher = pattern.matcher(path);
+                while (matcher.find()) {
+                    return true;
+                }
+            }
 			return false;
 		}
 	}
