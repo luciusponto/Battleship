@@ -1,17 +1,25 @@
 package com.lucianoscilletta.battleship;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.image.*;
-import java.awt.datatransfer.*;
-import com.lucianoscilletta.battleship.graphics.*;
-import com.lucianoscilletta.battleship.sound.*;
+import com.lucianoscilletta.battleship.sound.SoundEffect;
 import com.lucianoscilletta.battleship.ui.*;
+
+import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.Border;
+import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.ClipboardOwner;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.event.KeyListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.image.BufferStrategy;
 import java.io.*;
-import java.net.*;
-import java.util.regex.*;
-import javax.swing.border.*;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.regex.Pattern;
 
 public class GraphicsEngine{
 	public static final boolean testMode = false; //As the compiler removes blocks of unreachable code, setting this to false
@@ -544,7 +552,6 @@ public class GraphicsEngine{
 			frame.setResizable(false);
 			frame.setIgnoreRepaint(true);
 			device.setFullScreenWindow(frame);
-			//device.setDisplayMode(new DisplayMode(width, height, 32, 0));
 			device.setDisplayMode(displayModes[getOptions().getGraphOptRes()]);
 			displayMode = device.getDisplayMode();
 			bounds = frame.getBounds();
@@ -558,6 +565,15 @@ public class GraphicsEngine{
 			}
 			frame.setResizable(false);
 			frame.setSize(width+50, height+50);
+			Dimension gameResolution = new Dimension(width, height);
+			Dimension systemResolution = new Dimension(origDisplayMode.getWidth(), origDisplayMode.getHeight());
+			if (gameResolution.equals(systemResolution)) {
+				// make window borderless
+				frame.setUndecorated(true);
+			} else {
+				// make window with borders so it can be moved
+				frame.setUndecorated(false);
+			}
 			frame.setVisible(true);
 			displayMode = device.getDisplayMode();
 		}
@@ -609,11 +625,20 @@ public class GraphicsEngine{
 		System.exit(0);
 	}
 	public static void enterFullScreenMode(){
-		device.setFullScreenWindow(frame);
-		//device.setDisplayMode(new DisplayMode(width, height, 32, 0));
-		device.setDisplayMode(displayModes[getOptions().getGraphOptRes()]);
-		frame.setExtendedState(Frame.MAXIMIZED_BOTH);
-		repaint();
+		if (device.isFullScreenSupported()) {
+			try {
+				device.setFullScreenWindow(frame);
+				//device.setDisplayMode(new DisplayMode(width, height, 32, 0));
+				device.setDisplayMode(displayModes[getOptions().getGraphOptRes()]);
+				frame.setExtendedState(Frame.MAXIMIZED_BOTH);
+				fullScreenMode = true;
+				repaint();
+			} finally {
+				device.setFullScreenWindow(null);
+			}
+		} else {
+			fullScreenMode = false;
+		}
 	}
 
 	public static void exitFullScreenMode(){
